@@ -3,9 +3,6 @@ package main
 import (
 	"fmt"
 	"math"
-	"os"
-
-	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 type FinacialMonthDetail struct {
@@ -45,6 +42,7 @@ type FinancialModel struct {
 	Liability          []FinacialItem
 	CashflowPriority   []Priority
 	TransactionHistory []Transaction
+	Results            []FinacialMonthDetail
 }
 
 type Transaction struct {
@@ -71,6 +69,8 @@ type FinacialItem struct {
 
 // Returns the updated FinacialItem List after cashflow has been distrubuted to accounts per Cashflow Priority Order
 func (sp *FinancialModel) priorityEngine(items []FinacialItem, cashflow float64, total float64) (float64, []FinacialItem, float64) {
+
+	// No provided cashflow_prority
 	if len(sp.CashflowPriority) == 0 {
 		// what happens if there are no asset accounts where does the cashflow go. Maybe we create a safety account to hold the excess
 		items[0].Amount = items[0].Amount + cashflow
@@ -98,10 +98,6 @@ func (sp *FinancialModel) priorityEngine(items []FinacialItem, cashflow float64,
 
 }
 
-func growthLogger(growth float64) {
-
-}
-
 // Returns the total amount for the array of items and the updated item list.
 func (j *FinancialModel) totalForMonth(year, month int, items []FinacialItem) (float64, []FinacialItem) {
 	total := 0.0
@@ -112,12 +108,12 @@ func (j *FinancialModel) totalForMonth(year, month int, items []FinacialItem) (f
 
 			// We would need to calculate the change in months as its going up by 1
 			// monthsElapsed := (year-p.StartYear)*12 + (month - p.StartMonth) + 1
-			fmt.Println("months elapsed", 1)
+			// fmt.Println("months elapsed", 1)
 			growthAmount := p.Amount * math.Pow(1+p.GrowthRate, float64(1))
 
 			currentAmount := growthAmount
 
-			fmt.Println("current amount", currentAmount)
+			// fmt.Println("current amount", currentAmount)
 
 			item := p
 			item.Amount = currentAmount
@@ -137,30 +133,6 @@ func periodApplies(year, month int, p FinacialItem) bool {
 	return current >= start && current <= end
 }
 
-func printProjectionTable(projection_plan []FinacialMonthDetail) {
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-
-	t.AppendHeader(table.Row{"Year", "Month", "Total Incomes", "Total Expenses", "PRE ALLOC Cash Flow", "Total Assets", "Total Liabilities", "Net Worth", "POST ALLOC CASHFLOW"})
-
-	for _, m := range projection_plan {
-		t.AppendRow(table.Row{
-			m.Year,
-			fmt.Sprintf("%02d", m.Month),
-			fmt.Sprintf("£%.2f", m.TotalIncomes),
-			fmt.Sprintf("£%.2f", m.TotalExpenses),
-			fmt.Sprintf("£%.2f", m.PreAllocationCashFlow),
-			fmt.Sprintf("£%.2f", m.TotalAssets),
-			fmt.Sprintf("£%.2f", m.TotalLiabilities),
-			fmt.Sprintf("£%.2f", m.NetWorth),
-			fmt.Sprintf("%.2f", m.PostAllocationCashFlow),
-		})
-	}
-
-	t.Render()
-
-}
-
 func (p *FinancialModel) generateProjection(startYear, startMonth, endYear, endMonth int) []FinacialMonthDetail {
 
 	year, month := startYear, startMonth
@@ -170,21 +142,21 @@ func (p *FinancialModel) generateProjection(startYear, startMonth, endYear, endM
 	current := p
 
 	for {
-		fmt.Println("current assets", current.Assets)
+
 		totalIncomes, newIncomess := p.totalForMonth(year, month, current.Incomes)
 		totalExpense, newExpenses := p.totalForMonth(year, month, current.Expenses)
 
 		preAllocCashflow := totalIncomes - totalExpense
 
-		// where the excess cash will go
+		// Cashflow Calculation
 
-		// we will calculate the excess cash after the growth so after get the figures back its both easier and more realistic.
-		//
 		totalAssetsG, newAssetsGrowth := p.totalForMonth(year, month, current.Assets)
-		fmt.Println("Total Assets", totalAssetsG)
 
-		// May be better off inside of the totalformonth func to be selected during the loop for performance gain
+		// Asset Calculation
+
 		totalAssets, newAssets, postAllocationCashFlow := p.priorityEngine(newAssetsGrowth, preAllocCashflow, totalAssetsG)
+
+		//
 
 		totalLiabilites, newLiabilities := p.totalForMonth(year, month, current.Liability)
 
@@ -198,14 +170,14 @@ func (p *FinancialModel) generateProjection(startYear, startMonth, endYear, endM
 		month++
 
 		if month > 12 {
-			month = 0
+			month = 1
 			year++
 		}
 		current.Assets = newAssets
 		current.Liability = newLiabilities
 
 	}
-
+	p.Results = report
 	return report
 
 }
@@ -216,31 +188,31 @@ func yearRatetoMonthlyRate(yr float64) float64 {
 
 func main() {
 
-	fmt.Println("Monthly Rate: ", yearRatetoMonthlyRate(0.005))
 	assets := []FinacialItem{
-		{ID: 1, Name: "Stocks", StartYear: 2025, StartMonth: 1, EndYear: 2060, EndMonth: 1, Amount: 40000, GrowthRate: yearRatetoMonthlyRate(0.05)}, // 2% per month
-		// {ID: 2, Name: "Savings", StartYear: 2050, StartMonth: 1, EndYear: 2080, EndMonth: 12, Amount: 30000, GrowthRate: yearRatetoMonthlyRate(0.05)}, // 2% per month
+		{ID: 1, Name: "Stocks", StartYear: 2025, StartMonth: 1, EndYear: 2080, EndMonth: 12, Amount: 40000, GrowthRate: yearRatetoMonthlyRate(0.05)},  // 2% per month
+		{ID: 2, Name: "Pension", StartYear: 2025, StartMonth: 1, EndYear: 2080, EndMonth: 12, Amount: 10000, GrowthRate: yearRatetoMonthlyRate(0.05)}, // 2% per month
 	}
 
 	Incomes := []FinacialItem{
 		{Name: "Salary", StartYear: 2025, StartMonth: 1, EndYear: 2080, EndMonth: 12, Amount: 1000, GrowthRate: 0},
-		{Name: "StatePension", StartYear: 2064, StartMonth: 5, EndYear: 2080, EndMonth: 12, Amount: 1200, GrowthRate: 0}, // 2% per month
+		// {Name: "StatePension", StartYear: 2064, StartMonth: 5, EndYear: 2080, EndMonth: 12, Amount: 1200, GrowthRate: 0}, // 2% per month
 		// 2% per month
 	}
 
 	expenses := []FinacialItem{
-		{Name: "Rent", StartYear: 2025, StartMonth: 1, EndYear: 2025, EndMonth: 12, Amount: 500, GrowthRate: 0}, // 2% per month
+		{Name: "Rent", StartYear: 2025, StartMonth: 1, EndYear: 2080, EndMonth: 12, Amount: 500, GrowthRate: 0}, // 2% per month
 	}
 	Liabilities := []FinacialItem{
-		{Name: "House", StartYear: 2025, StartMonth: 1, EndYear: 2025, EndMonth: 12, Amount: 500, GrowthRate: 0}, // 2% per month
+		// {Name: "House", StartYear: 2025, StartMonth: 1, EndYear: 2025, EndMonth: 12, Amount: 500, GrowthRate: 0}, // 2% per month
 	}
 
 	// amount, updatedFinance := totalForMonth(2064, 12, assets)
 	pro := Priority{ItemID: 1, MaxInsert: 0}
 	model := FinancialModel{Assets: assets, Liability: Liabilities, Expenses: expenses, Incomes: Incomes, CashflowPriority: []Priority{pro}}
 
-	printProjectionTable(model.generateProjection(2025, 1, 2030, 12))
+	// presentation.PrintProjectionsTable([]domain.generateProjection(2025, 1, 2080, 12))
 
 	// fmt.Println("Report", model.generateProjection(2025, 1, 2025, 12))
+	fmt.Println(model.Results[0])
 
 }
